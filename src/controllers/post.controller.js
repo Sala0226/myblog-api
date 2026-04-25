@@ -2,21 +2,38 @@ const Post = require('../models/Post');
 
 exports.getPosts = async (req, res) => {
   try {
+    const page  = parseInt(req.query.page)  || 1;
+    const limit = parseInt(req.query.limit) || 6;
+    const skip  = (page - 1) * limit;
+
+    const total = await Post.countDocuments();
+
     const posts = await Post.find()
       .populate('author', 'name email')
       .populate('likes', 'name')
       .populate('comments.user', 'name')
       .sort({ createdAt: -1 })
-      .lean(); // ← retourne des objets JS purs
+      .skip(skip)
+      .limit(limit)
+      .lean();
 
-    // Sécurise chaque post
     const safePosts = posts.map(post => ({
       ...post,
-      likes: Array.isArray(post.likes) ? post.likes.filter(Boolean) : [],
+      likes:    Array.isArray(post.likes)    ? post.likes.filter(Boolean)    : [],
       comments: Array.isArray(post.comments) ? post.comments.filter(Boolean) : [],
     }));
 
-    res.json(safePosts);
+    res.json({
+      posts: safePosts,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        hasNext: page < Math.ceil(total / limit),
+        hasPrev: page > 1
+      }
+    });
   } catch (err) {
     console.error('getPosts error:', err);
     res.status(500).json({ message: err.message });
@@ -104,6 +121,42 @@ exports.commentPost = async (req, res) => {
     });
   } catch (err) {
     console.error('commentPost error:', err);
+    res.status(400).json({ message: err.message });
+  }
+};
+
+exports.updateComment = async (req, res) => {
+  try {
+    const { content } = req.body;
+    if (!content) return res.status(400).json({ message: 'Contenu requis' });
+
+    const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: 'Post introuvable' });
+
+    const comment = post.comments.id(req.params.commentId);
+    if (!comment) return res.status(404).json({ message: 'Commentaire introuvable' });
+
+    // Vérifie que c'est bien le bon user
+    if (comment.user.toString() !== req.userId.toString()) {
+      return res.status(403).json({ message: 'Non autorisé' });
+    }
+
+    comment.content = content;
+    await post.save();
+
+    const populated = await Post.findById(post._id)
+      .populate('author', 'name email')
+      .populate('likes', 'name')
+      .populate('comments.user', 'name')
+      .lean();
+
+    res.json({
+      ...populated,
+      likes:    populated.likes    || [],
+      comments: populated.comments || []
+    });
+  } catch (err) {
+    console.error('updateComment error:', err);
     res.status(400).json({ message: err.message });
   }
 };
