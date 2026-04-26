@@ -6,7 +6,14 @@ const app = express();
 const postRoutes = require('./routes/post.routes');
 
 // Middlewares
-app.use(cors({ origin: 'http://localhost:5173' }));
+app.use(cors({ 
+  origin: [
+    'http://localhost:5173', 
+    'https://myblog-frontend-sable.vercel.app' 
+  ],
+  credentials: true 
+}));
+
 app.use(express.json());
 
 // Routes
