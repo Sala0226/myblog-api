@@ -34,8 +34,13 @@ exports.loginUser = async (data) => {
 
   const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
-  // Ne jamais envoyer le password !
-  const { password: _, ...userWithoutPassword } = user.toObject();
-
-  return { token, user: userWithoutPassword };
+  return {
+    token,
+    user: {
+      _id:    user._id,
+      name:   user.name,
+      email:  user.email,
+      avatar: user.avatar || ''
+    }
+  };
 };

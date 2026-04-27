@@ -3,7 +3,9 @@ const cors = require('cors');
 
 const app = express();
 
-const postRoutes = require('./routes/post.routes');
+const postRoutes = require('./routes/post.routes'); 
+
+const userRoutes = require('./routes/user.routes');
 
 // Middlewares
 app.use(cors({ 
@@ -23,5 +25,8 @@ app.use('/api', require('./routes'));
 app.use('/api/posts', postRoutes);
 
 // Export
-module.exports = app;
+module.exports = app; 
+
+//Users Routes Cloud Images
+app.use('/api/users', userRoutes);
 

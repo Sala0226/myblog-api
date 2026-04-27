@@ -42,25 +42,30 @@ exports.getPosts = async (req, res) => {
 
 exports.createPost = async (req, res) => {
   try {
+     console.log('Body reçu:', req.body);
+    console.log('File reçu:', req.file);
     const { title, content } = req.body;
     if (!title || !content) {
       return res.status(400).json({ message: 'Titre et contenu requis' });
     }
+
     const post = await Post.create({
       title,
       content,
-      author: req.userId,
-      likes: [],
+      image:    req.file ? req.file.path : '',
+      author:   req.userId,
+      likes:    [],
       comments: []
     });
+
     const populated = await Post.findById(post._id)
-      .populate('author', 'name email')
+      .populate('author', 'name email avatar')
       .populate('likes', 'name')
       .populate('comments.user', 'name')
       .lean();
+
     res.status(201).json(populated);
   } catch (err) {
-    console.error('createPost error:', err);
     res.status(400).json({ message: err.message });
   }
 };
