@@ -14,6 +14,8 @@ router.post('/', verifyToken, (req, res, next) => {
     next();
   });
 }, postController.createPost);
+router.put('/:id',    verifyToken, uploadPost.single('image'), postController.updatePost);
+router.delete('/:id', verifyToken, postController.deletePost);
 router.post('/:id/like', verifyToken, postController.likePost);
 router.post('/:id/comment', verifyToken, postController.commentPost);
 router.put('/:id/comment/:commentId', verifyToken, postController.updateComment);

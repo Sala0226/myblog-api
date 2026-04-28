@@ -18,6 +18,19 @@ exports.updateAvatar = async (req, res) => {
   }
 };
 
+exports.deleteAvatar = async (req, res) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.userId,
+      { avatar: '' },
+      { new: true, select: '-password' }
+    );
+    res.json({ message: 'Avatar supprimé', user });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 exports.getProfile = async (req, res) => {
   try {
     const user = await User.findById(req.userId).select('-password');

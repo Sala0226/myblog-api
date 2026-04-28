@@ -2,16 +2,36 @@ const Post = require('../models/Post');
 
 exports.getPosts = async (req, res) => {
   try {
-    const page  = parseInt(req.query.page)  || 1;
-    const limit = parseInt(req.query.limit) || 6;
-    const skip  = (page - 1) * limit;
+    const page   = parseInt(req.query.page)  || 1;
+    const limit  = parseInt(req.query.limit) || 6;
+    const skip   = (page - 1) * limit;
+    const search = req.query.search || '';
 
-    const total = await Post.countDocuments();
+    let filter = {};
 
-    const posts = await Post.find()
-      .populate('author', 'name email')
-      .populate('likes', 'name')
-      .populate('comments.user', 'name')
+    if (search) {
+      // Cherche les users dont le nom correspond
+      const User = require('../models/User');
+      const matchingUsers = await User.find({
+        name: { $regex: search, $options: 'i' }
+      }).select('_id');
+      const userIds = matchingUsers.map(u => u._id);
+
+      filter = {
+        $or: [
+          { title:   { $regex: search, $options: 'i' } },
+          { content: { $regex: search, $options: 'i' } },
+          { author:  { $in: userIds } }
+        ]
+      };
+    }
+
+    const total = await Post.countDocuments(filter);
+
+    const posts = await Post.find(filter)
+      .populate('author', 'name email avatar')
+      .populate('likes', 'name avatar')
+      .populate('comments.user', 'name avatar')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
@@ -60,8 +80,8 @@ exports.createPost = async (req, res) => {
 
     const populated = await Post.findById(post._id)
       .populate('author', 'name email avatar')
-      .populate('likes', 'name')
-      .populate('comments.user', 'name')
+      .populate('likes', 'name avatar')
+      .populate('comments.user', 'name avatar')
       .lean();
 
     res.status(201).json(populated);
@@ -86,8 +106,8 @@ exports.likePost = async (req, res) => {
     await post.save();
 
     const populated = await Post.findById(post._id)
-      .populate('likes', 'name')
-      .populate('comments.user', 'name')
+      .populate('likes', 'name avatar')
+      .populate('comments.user', 'name avatar')
       .lean();
 
     res.json({
@@ -114,9 +134,9 @@ exports.commentPost = async (req, res) => {
     await post.save();
 
     const populated = await Post.findById(post._id)
-      .populate('author', 'name email')
-      .populate('likes', 'name')
-      .populate('comments.user', 'name')
+      .populate('author', 'name email avatar')
+      .populate('likes', 'name avatar')
+      .populate('comments.user', 'name avatar')
       .lean();
 
     res.json({
@@ -150,9 +170,9 @@ exports.updateComment = async (req, res) => {
     await post.save();
 
     const populated = await Post.findById(post._id)
-      .populate('author', 'name email')
-      .populate('likes', 'name')
-      .populate('comments.user', 'name')
+      .populate('author', 'name email avatar')
+      .populate('likes', 'name avatar')
+      .populate('comments.user', 'name avatar')
       .lean();
 
     res.json({
@@ -162,6 +182,45 @@ exports.updateComment = async (req, res) => {
     });
   } catch (err) {
     console.error('updateComment error:', err);
+    res.status(400).json({ message: err.message });
+  }
+};
+
+exports.updatePost = async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: 'Post introuvable' });
+    if (post.author.toString() !== req.userId.toString()) {
+      return res.status(403).json({ message: 'Non autorisé' });
+    }
+
+    post.title   = req.body.title   || post.title;
+    post.content = req.body.content || post.content;
+    if (req.file) post.image = req.file.path;
+    await post.save();
+
+    const populated = await Post.findById(post._id)
+      .populate('author', 'name email avatar')
+      .populate('likes', 'name avatar')
+      .populate('comments.user', 'name avatar')
+      .lean();
+
+    res.json({ ...populated, likes: populated.likes || [], comments: populated.comments || [] });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+
+exports.deletePost = async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: 'Post introuvable' });
+    if (post.author.toString() !== req.userId.toString()) {
+      return res.status(403).json({ message: 'Non autorisé' });
+    }
+    await Post.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Post supprimé' });
+  } catch (err) {
     res.status(400).json({ message: err.message });
   }
 };
