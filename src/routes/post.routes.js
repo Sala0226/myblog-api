@@ -19,6 +19,7 @@ router.delete('/:id', verifyToken, postController.deletePost);
 router.post('/:id/like', verifyToken, postController.likePost);
 router.post('/:id/comment', verifyToken, postController.commentPost);
 router.put('/:id/comment/:commentId', verifyToken, postController.updateComment);
-
+router.get('/user/:userId', verifyToken, postController.getPostsByUser);
+router.put('/:id/visibility', verifyToken, postController.toggleVisibility);
 
 module.exports = router;

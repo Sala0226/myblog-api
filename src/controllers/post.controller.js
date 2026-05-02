@@ -7,10 +7,15 @@ exports.getPosts = async (req, res) => {
     const skip   = (page - 1) * limit;
     const search = req.query.search || '';
 
-    let filter = {};
+    let filter = {
+      $or: [
+        { isPublic: true },
+        { isPublic: { $exists: false } },
+        { author: req.userId } // le proprio voit ses posts privés
+      ]
+    };
 
     if (search) {
-      // Cherche les users dont le nom correspond
       const User = require('../models/User');
       const matchingUsers = await User.find({
         name: { $regex: search, $options: 'i' }
@@ -18,10 +23,21 @@ exports.getPosts = async (req, res) => {
       const userIds = matchingUsers.map(u => u._id);
 
       filter = {
-        $or: [
-          { title:   { $regex: search, $options: 'i' } },
-          { content: { $regex: search, $options: 'i' } },
-          { author:  { $in: userIds } }
+        $and: [
+          {
+            $or: [
+              { isPublic: true },
+              { isPublic: { $exists: false } },
+              { author: req.userId }
+            ]
+          },
+          {
+            $or: [
+              { title:   { $regex: search, $options: 'i' } },
+              { content: { $regex: search, $options: 'i' } },
+              { author:  { $in: userIds } }
+            ]
+          }
         ]
       };
     }
@@ -39,7 +55,7 @@ exports.getPosts = async (req, res) => {
 
     const safePosts = posts.map(post => ({
       ...post,
-      likes:    Array.isArray(post.likes)    ? post.likes.filter(Boolean)    : [],
+      likes:    Array.isArray(post.likes)    ? post.likes.filter(Boolean) : [],
       comments: Array.isArray(post.comments) ? post.comments.filter(Boolean) : [],
     }));
 
@@ -59,7 +75,6 @@ exports.getPosts = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
-
 exports.createPost = async (req, res) => {
   try {
      console.log('Body reçu:', req.body);
@@ -220,6 +235,52 @@ exports.deletePost = async (req, res) => {
     }
     await Post.findByIdAndDelete(req.params.id);
     res.json({ message: 'Post supprimé' });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+
+exports.getPostsByUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { visibility } = req.query; // 'public' ou 'all'
+    
+    let filter = { author: userId };
+    
+    // Si c'est pas le propriétaire, seulement les posts publics
+    if (req.userId !== userId) {
+      filter.isPublic = true;
+    }
+
+    const posts = await Post.find(filter)
+      .populate('author', 'name email avatar')
+      .populate('likes', 'name avatar')
+      .populate('comments.user', 'name avatar')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const safePosts = posts.map(post => ({
+      ...post,
+      likes:    Array.isArray(post.likes)    ? post.likes.filter(Boolean) : [],
+      comments: Array.isArray(post.comments) ? post.comments.filter(Boolean) : [],
+    }));
+
+    res.json(safePosts);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+exports.toggleVisibility = async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: 'Post introuvable' });
+    if (post.author.toString() !== req.userId.toString()) {
+      return res.status(403).json({ message: 'Non autorisé' });
+    }
+    post.isPublic = !post.isPublic;
+    await post.save();
+    res.json({ isPublic: post.isPublic });
   } catch (err) {
     res.status(400).json({ message: err.message });
   }

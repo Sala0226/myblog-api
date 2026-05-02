@@ -7,6 +7,8 @@ const postRoutes = require('./routes/post.routes');
 
 const userRoutes = require('./routes/user.routes');
 
+const adminRoutes = require('./routes/admin.routes');
+
 // Middlewares
 app.use(cors({ 
   origin: [
@@ -29,4 +31,7 @@ module.exports = app;
 
 //Users Routes Cloud Images
 app.use('/api/users', userRoutes);
+
+//Admin
+app.use('/api/admin', adminRoutes);
 

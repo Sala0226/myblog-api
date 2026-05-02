@@ -40,7 +40,8 @@ exports.loginUser = async (data) => {
       _id:    user._id,
       name:   user.name,
       email:  user.email,
-      avatar: user.avatar || ''
+      avatar: user.avatar || '',
+      isAdmin: user.email === process.env.ADMIN_EMAIL 
     }
   };
 };

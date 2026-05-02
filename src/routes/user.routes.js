@@ -1,11 +1,13 @@
 const express = require('express');
 const router  = express.Router();
-const { updateAvatar, deleteAvatar, getProfile  } = require('../controllers/user.controller');
+const { updateAvatar, deleteAvatar, getProfile, getPublicProfile, updatePassword } = require('../controllers/user.controller');
 const { verifyToken } = require('../middlewares/auth.middleware');
 const { uploadAvatar } = require('../config/cloudinary');
 
 router.get('/profile',              verifyToken, getProfile);
+router.get('/profile/:userId',   verifyToken, getPublicProfile);
 router.put('/avatar', verifyToken,  uploadAvatar.single('avatar'), updateAvatar);
 router.delete('/avatar', verifyToken, deleteAvatar);
+router.put('/update-password',   verifyToken, updatePassword);
 
 module.exports = router;
