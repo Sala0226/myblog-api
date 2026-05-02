@@ -7,11 +7,12 @@ exports.getPosts = async (req, res) => {
     const skip   = (page - 1) * limit;
     const search = req.query.search || '';
 
+    const userId = req.userId?.toString();
+
     let filter = {
       $or: [
         { isPublic: true },
-        { isPublic: { $exists: false } },
-        { author: req.userId } // le proprio voit ses posts privés
+        { author: req.userId }
       ]
     };
 
@@ -27,7 +28,6 @@ exports.getPosts = async (req, res) => {
           {
             $or: [
               { isPublic: true },
-              { isPublic: { $exists: false } },
               { author: req.userId }
             ]
           },
@@ -43,7 +43,6 @@ exports.getPosts = async (req, res) => {
     }
 
     const total = await Post.countDocuments(filter);
-
     const posts = await Post.find(filter)
       .populate('author', 'name email avatar')
       .populate('likes', 'name avatar')
@@ -71,7 +70,7 @@ exports.getPosts = async (req, res) => {
       }
     });
   } catch (err) {
-    console.error('getPosts error:', err);
+    console.error('getPosts error:', err.message);
     res.status(500).json({ message: err.message });
   }
 };

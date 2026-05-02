@@ -92,30 +92,75 @@ exports.getUsers = async (req, res) => {
 exports.getPosts = async (req, res) => {
   try {
     const page   = parseInt(req.query.page)  || 1;
-    const limit  = parseInt(req.query.limit) || 10;
+    const limit  = parseInt(req.query.limit) || 6;
     const skip   = (page - 1) * limit;
     const search = req.query.search || '';
 
-    const filter = search ? {
+    // ← Filtre clé : exclure les posts privés des autres
+    let filter = {
       $or: [
-        { title:   { $regex: search, $options: 'i' } },
-        { content: { $regex: search, $options: 'i' } }
+        { isPublic: true },
+        { isPublic: { $exists: false } },
+        { author: req.userId }
       ]
-    } : {};
+    };
+
+    if (search) {
+      const User = require('../models/User');
+      const matchingUsers = await User.find({
+        name: { $regex: search, $options: 'i' }
+      }).select('_id');
+      const userIds = matchingUsers.map(u => u._id);
+
+      filter = {
+        $and: [
+          {
+            $or: [
+              { isPublic: true },
+              { isPublic: { $exists: false } },
+              { author: req.userId }
+            ]
+          },
+          {
+            $or: [
+              { title:   { $regex: search, $options: 'i' } },
+              { content: { $regex: search, $options: 'i' } },
+              { author:  { $in: userIds } }
+            ]
+          }
+        ]
+      };
+    }
 
     const total = await Post.countDocuments(filter);
     const posts = await Post.find(filter)
       .populate('author', 'name email avatar')
+      .populate('likes', 'name avatar')
+      .populate('comments.user', 'name avatar')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
       .lean();
 
+    const safePosts = posts.map(post => ({
+      ...post,
+      likes:    Array.isArray(post.likes)    ? post.likes.filter(Boolean) : [],
+      comments: Array.isArray(post.comments) ? post.comments.filter(Boolean) : [],
+    }));
+
     res.json({
-      posts,
-      pagination: { total, page, limit, totalPages: Math.ceil(total / limit) }
+      posts: safePosts,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        hasNext: page < Math.ceil(total / limit),
+        hasPrev: page > 1
+      }
     });
   } catch (err) {
+    console.error('getPosts error:', err);
     res.status(500).json({ message: err.message });
   }
 };
